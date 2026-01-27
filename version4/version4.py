@@ -1,12 +1,12 @@
 import numpy as np
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers # type: ignore
 import random
 from collections import deque
 
 ROWS = 6
 COLS = 7
-GAMMA = 0.95  # Discount factor
+GAMMA = 0.95  
 EPSILON_START = 1.0
 EPSILON_MIN = 0.05
 EPSILON_DECAY = 0.9995
@@ -28,22 +28,19 @@ def available_moves(board):
     return [c for c in range(COLS) if board[ROWS - 1][c] == ' ']
 
 def check_winner(board, player):
-    # Horizontal
     for r in range(ROWS):
         for c in range(COLS - 3):
             if all(board[r][c + i] == player for i in range(4)):
                 return True
-    # Vertical
     for c in range(COLS):
         for r in range(ROWS - 3):
             if all(board[r + i][c] == player for i in range(4)):
                 return True
-    # Diagonal \
     for r in range(ROWS - 3):
         for c in range(COLS - 3):
             if all(board[r + i][c + i] == player for i in range(4)):
                 return True
-    # Diagonal /
+
     for r in range(ROWS - 3):
         for c in range(3, COLS):
             if all(board[r + i][c - i] == player for i in range(4)):
@@ -60,10 +57,7 @@ def board_to_input(board, player):
     return arr.reshape((ROWS, COLS, 1))
 
 def create_model():
-    """Create improved model architecture"""
     inputs = keras.Input(shape=(ROWS, COLS, 1))
-    
-    # Convolutional layers to detect patterns
     x = layers.Conv2D(64, (4, 4), activation='relu', padding='same')(inputs)
     x = layers.Conv2D(64, (4, 4), activation='relu', padding='same')(x)
     x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
@@ -72,7 +66,6 @@ def create_model():
     x = layers.Dense(128, activation='relu')(x)
     x = layers.Dense(64, activation='relu')(x)
     
-    # Output Q-values for each column
     outputs = layers.Dense(COLS, activation='linear')(x)
     
     model = keras.Model(inputs=inputs, outputs=outputs)
@@ -81,19 +74,13 @@ def create_model():
     return model
 
 def get_reward(board, player, move_col, opponent):
-    """Calculate reward with better shaping"""
-    # Check if player won
     if check_winner(board, player):
         return 1.0
-    
-    # Check if opponent can win next turn (we made a blunder)
     for c in available_moves(board):
         tmp = [row[:] for row in board]
         drop_piece(tmp, c, opponent)
         if check_winner(tmp, opponent):
-            return -0.8  # Severe penalty for blunders
-    
-    # Check if move was a blocking move
+            return -0.8
     tmp = [row[:] for row in board]
     undo_row = -1
     for r in range(ROWS):
@@ -107,13 +94,9 @@ def get_reward(board, player, move_col, opponent):
             tmp2 = [row[:] for row in tmp]
             drop_piece(tmp2, c, opponent)
             if check_winner(tmp2, opponent):
-                return 0.3  # Reward blocking
-    
-    # Check for draw
+                return 0.3
     if is_draw(board):
         return 0.0
-    
-    # Small negative reward for continuing (encourages faster wins)
     return -0.01
 
 class ReplayMemory:
@@ -130,7 +113,6 @@ class ReplayMemory:
         return len(self.memory)
 
 def train_model(episodes=5000, save_file="connect4_trained.keras"):
-    """Train the model using Double DQN with experience replay"""
     model = create_model()
     target_model = create_model()
     target_model.set_weights(model.get_weights())
@@ -151,34 +133,23 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
         actions = []
         rewards = []
         
-        # Play one game
         while True:
             state = board_to_input(board, player)
             moves = available_moves(board)
-            
-            # Epsilon-greedy action selection
             if random.random() < epsilon:
                 action = random.choice(moves)
             else:
                 q_values = model.predict(state[np.newaxis, :], verbose=0)[0]
-                # Mask invalid moves
                 q_masked = np.full(COLS, -np.inf)
                 for m in moves:
                     q_masked[m] = q_values[m]
                 action = np.argmax(q_masked)
-            
-            # Make move
             drop_piece(board, action, player)
-            
-            # Calculate reward
             game_over = check_winner(board, player) or is_draw(board)
             reward = get_reward(board, player, action, opponent)
             
             next_state = board_to_input(board, opponent) if not game_over else None
-            
-            # Store transition
             memory.push(state, action, reward, next_state, game_over)
-            
             if game_over:
                 if check_winner(board, player):
                     wins += 1
@@ -187,11 +158,7 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
                 else:
                     losses += 1
                 break
-            
-            # Switch players
             player, opponent = opponent, player
-        
-        # Train on batch
         if len(memory) >= BATCH_SIZE:
             batch = memory.sample(BATCH_SIZE)
             
@@ -200,8 +167,6 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
             rewards_batch = np.array([b[2] for b in batch])
             next_states_batch = np.array([b[3] if b[3] is not None else np.zeros((ROWS, COLS, 1)) for b in batch])
             done_batch = np.array([b[4] for b in batch])
-            
-            # Double DQN: use online network to select actions, target network to evaluate
             current_q = model.predict(states_batch, verbose=0)
             next_q_online = model.predict(next_states_batch, verbose=0)
             next_q_target = target_model.predict(next_states_batch, verbose=0)
@@ -216,15 +181,10 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
                     targets[i, actions_batch[i]] = rewards_batch[i] + GAMMA * next_q_target[i, best_action]
             
             model.fit(states_batch, targets, epochs=1, verbose=0)
-        
-        # Update target network
         if episode % TARGET_UPDATE == 0:
             target_model.set_weights(model.get_weights())
-        
-        # Decay epsilon
         epsilon = max(EPSILON_MIN, epsilon * EPSILON_DECAY)
         
-        # Progress report
         if (episode + 1) % 500 == 0:
             win_rate = wins / (wins + losses + draws) if (wins + losses + draws) > 0 else 0
             print(f"Episode {episode + 1}/{episodes}")
@@ -238,7 +198,6 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
 
 if __name__ == "__main__":
     print("Starting training...")
-    print("This will take some time. Training 5000 episodes with improved architecture.")
     print()
     model = train_model(episodes=10000, save_file="version4_test_10000.keras")
     print("\nTraining finished!")
