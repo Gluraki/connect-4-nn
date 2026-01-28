@@ -80,7 +80,7 @@ def get_reward(board, player, move_col, opponent):
         tmp = [row[:] for row in board]
         drop_piece(tmp, c, opponent)
         if check_winner(tmp, opponent):
-            return -0.8
+            return -2
     tmp = [row[:] for row in board]
     undo_row = -1
     for r in range(ROWS):
@@ -199,5 +199,5 @@ def train_model(episodes=5000, save_file="connect4_trained.keras"):
 if __name__ == "__main__":
     print("Starting training...")
     print()
-    model = train_model(episodes=10000, save_file="version4_test_10000.keras")
+    model = train_model(episodes=10000, save_file="version4_test_matze_10000.keras")
     print("\nTraining finished!")

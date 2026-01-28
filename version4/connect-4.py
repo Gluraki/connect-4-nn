@@ -3,7 +3,7 @@ from tensorflow import keras
 
 ROWS = 6
 COLS = 7
-MODEL_FILE = "version4_test_10000.keras"
+MODEL_FILE = "version4_test_matze_1000.keras"
 
 def create_board():
     return [[' ' for _ in range(COLS)] for _ in range(ROWS)]

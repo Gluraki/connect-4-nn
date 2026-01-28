@@ -4,7 +4,7 @@ import random
 
 ROWS = 6
 COLS = 7
-MODEL_FILE = "version4_test_10000.keras"
+MODEL_FILE = "version4_test_matze_1000.keras"
 
 def create_board():
     return [[' ' for _ in range(COLS)] for _ in range(ROWS)]
@@ -96,7 +96,6 @@ except:
     exit(1)
 
 def inspect(board, player, title=""):
-    """Inspect Q-values and identify strategic moves"""
     state = board_to_input(board, player)
     q = model.predict(state[np.newaxis, :], verbose=0)[0]
     
@@ -135,21 +134,6 @@ def inspect(board, player, title=""):
         print(f"Best move: Col {np.argmax([q[c] if c in moves else -np.inf for c in range(COLS)]) + 1}")
         print(f"Q-value range: [{min(valid_q):+.4f}, {max(valid_q):+.4f}]")
         print(f"Spread: {max(valid_q) - min(valid_q):.4f}")
-    
-    issues = []
-    if wins and max(q[c] for c in wins) < 0.5:
-        issues.append("Winning moves have low Q-values")
-    if bad and max(q[c] for c in bad) > -0.3:
-        issues.append("Blunders not penalized enough")
-    if blocks and max(q[c] for c in blocks) < max(valid_q) - 0.1:
-        issues.append("Not prioritizing blocks")
-    
-    if issues:
-        print("\n❌ Issues detected:")
-        for issue in issues:
-            print(f"   {issue}")
-    else:
-        print("\n✓ Model appears to understand this position")
 
 print("="*60)
 print("TESTING TRAINED MODEL")
